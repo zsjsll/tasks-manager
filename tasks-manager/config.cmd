@@ -4,7 +4,7 @@
 @REM ------------------------------------------------------------
 
 @REM 任务文件夹名称（在计划任务中的路径，如 #self 对应 \#self\）
-set "TASK_FOLDER=self"
+set "TASK_FOLDER=@tasks"
 
 @REM 是否禁用电池限制（允许充电时运行）(true/false)
 set "DISABLE_POWER_LIMITS=true"
