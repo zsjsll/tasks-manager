@@ -23,7 +23,7 @@ if !errorlevel! neq 0 (
 :main
 cls
 echo ============================================================
-echo                     !TASK_FOLDER! 目录任务管理
+echo  !TASK_FOLDER! 目录任务管理
 echo ============================================================
 
 set "MAPFILE=%temp%\taskmap.txt"
@@ -101,7 +101,7 @@ if "!ACT!"=="1" (
     echo.
     echo 请查看上方失败原因，按任意键返回主菜单...
     pause >nul
-  ) else (
+    ) else (
     echo.
     echo 2 秒后自动返回主菜单...
     timeout /t 2 /nobreak >nul
@@ -119,7 +119,7 @@ if "!ACT!"=="2" (
     echo.
     echo 请查看上方失败原因，按任意键返回主菜单...
     pause >nul
-  ) else (
+    ) else (
     echo.
     echo 2 秒后自动返回主菜单...
     timeout /t 2 /nobreak >nul
@@ -137,7 +137,7 @@ if "!ACT!"=="3" (
     echo.
     echo 请查看上方失败原因，按任意键返回主菜单...
     pause >nul
-  ) else (
+    ) else (
     echo.
     echo 2 秒后自动返回主菜单...
     timeout /t 2 /nobreak >nul
@@ -155,7 +155,7 @@ if "!ACT!"=="4" (
     echo.
     echo 请查看上方失败原因，按任意键返回主菜单...
     pause >nul
-  ) else (
+    ) else (
     echo.
     echo 2 秒后自动返回主菜单...
     timeout /t 2 /nobreak >nul
@@ -183,12 +183,12 @@ if "!errorlevel!"=="1" (
     echo.
     echo 请查看上方失败原因，按任意键返回主菜单...
     pause >nul
-  ) else (
+    ) else (
     echo.
     echo 2 秒后自动返回主菜单...
     timeout /t 2 /nobreak >nul
   )
-) else (
+  ) else (
   echo 取消删除。
   echo.
   echo 2 秒后自动返回主菜单...

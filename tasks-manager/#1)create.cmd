@@ -19,9 +19,9 @@ if !errorlevel! neq 0 (
     )
     echo 正在请求管理员权限...
     powershell -Command "Start-Process -Verb RunAs -FilePath '%~f0' -ArgumentList \"%~1\""
-  ) else (
+    ) else (
     echo ============================================================
-    echo                     Windows 计划任务 创建助手
+    echo  Windows 计划任务 创建助手
     echo ============================================================
     echo.
     :input_user_path
@@ -52,7 +52,7 @@ if "%~1"=="" (
 set "TR=%~1"
 for %%I in ("!TR!") do set "TN=%%~nI"
 echo ============================================================
-echo                     Windows 计划任务 创建助手
+echo  Windows 计划任务 创建助手
 echo ============================================================
 echo.
 echo 检测到程序路径：!TR!
@@ -65,10 +65,10 @@ echo.
 @REM ------------------------------------------------------------
 @REM schtasks /query /tn "\!TASK_FOLDER!\" >nul 2>&1
 @REM if !errorlevel! neq 0 (
-@REM   echo 正在创建任务文件夹 !TASK_FOLDER!...
-@REM   powershell -Command "New-Item -Path 'C:\Windows\System32\Tasks\!TASK_FOLDER!' -ItemType Directory -Force" >nul 2>&1
-@REM   echo 文件夹创建完成。
-@REM   echo.
+@REM  echo 正在创建任务文件夹 !TASK_FOLDER!...
+@REM  powershell -Command "New-Item -Path 'C:\Windows\System32\Tasks\!TASK_FOLDER!' -ItemType Directory -Force" >nul 2>&1
+@REM  echo 文件夹创建完成。
+@REM  echo.
 @REM )
 
 @REM ------------------------------------------------------------
@@ -190,9 +190,9 @@ if !NEED_DELAY! EQU 1 (
   set /a SECONDS=!REMAIN! %% 60
   if !HOURS! GTR 0 (
     set "DISPLAY=!HOURS!时!MINUTES!分!SECONDS!秒"
-  ) else if !MINUTES! GTR 0 (
+    ) else if !MINUTES! GTR 0 (
     set "DISPLAY=!MINUTES!分!SECONDS!秒"
-  ) else (
+    ) else (
     set "DISPLAY=!SECONDS!秒"
   )
 
@@ -230,10 +230,10 @@ if "!RU_CHOICE!"=="" set "RU_CHOICE=1"
 if "!RU_CHOICE!"=="1" (
   set "RU="
   set "RP="
-) else if "!RU_CHOICE!"=="2" (
+  ) else if "!RU_CHOICE!"=="2" (
   set "RU=SYSTEM"
   set "RP="
-) else if "!RU_CHOICE!"=="3" (
+  ) else if "!RU_CHOICE!"=="3" (
   :input_ru_custom
   set "RU="
   set /p "RU=请输入用户名（格式：域名\用户名）："
@@ -244,7 +244,7 @@ if "!RU_CHOICE!"=="1" (
   )
   set "RP="
   set /p "RP=请输入该用户的密码："
-) else (
+  ) else (
   echo 无效选项，请重新输入。
   echo.
   goto input_ru
@@ -255,33 +255,34 @@ if "!RU_CHOICE!"=="1" (
 @REM ------------------------------------------------------------
 echo.
 echo ============================================================
+echo.
 echo 即将执行以下命令创建计划任务：
 echo.
-@REM 简化 /tr 命令，直接使用程序路径（避免引号嵌套问题）
-set "TR_CMD=!TR!"
-set "CMD=schtasks /create /tn "\!TASK_FOLDER!\!TN!" /tr "!TR_CMD!" /sc !SC! /F /RL HIGHEST"
+set "CMD=schtasks /create /tn "\!TASK_FOLDER!\!TN!" /tr "!TR!" /sc !SC! /F /RL HIGHEST"
 if not "!ST!"=="" set "CMD=!CMD! /st !ST!"
 if not "!DELAY!"=="" set "CMD=!CMD! /delay !DELAY!"
 if not "!RU!"=="" set "CMD=!CMD! /ru !RU!"
 if not "!RP!"=="" set "CMD=!CMD! /rp !RP!"
 
-echo !CMD!
-echo ============================================================
+echo  !CMD!
 echo.
-@REM 以列表形式显示配置文件（config.cmd）控制的设置，供确认前查看
+echo.
 echo [配置文件] 将要应用的设置：
+echo.
 set "SETTINGS_COUNT=0"
 if /i "!DISABLE_POWER_LIMITS!"=="true" (
-  echo    - 禁用电池限制（允许充电时运行）
+  echo  - 禁用电池限制（允许充电时运行）
   set /a SETTINGS_COUNT+=1
 )
 if /i "!WAKE_TO_RUN!"=="true" (
-  echo    - 启用唤醒运行
+  echo  - 启用唤醒运行
   set /a SETTINGS_COUNT+=1
 )
 if !SETTINGS_COUNT! EQU 0 (
-  echo    - 未应用额外设置
+  echo  - 未应用额外设置
 )
+echo.
+echo ============================================================
 echo.
 
 @REM ------------------------------------------------------------
@@ -298,20 +299,6 @@ if !errorlevel! EQU 1 (
   if !ERRCODE! equ 0 (
     echo 任务创建成功，正在应用设置...
     echo.
-    echo 正在应用以下设置：
-    set "SETTINGS_COUNT=0"
-    if /i "!DISABLE_POWER_LIMITS!"=="true" (
-      echo    - 禁用电池限制（允许充电时运行）
-      set /a SETTINGS_COUNT+=1
-    )
-    if /i "!WAKE_TO_RUN!"=="true" (
-      echo    - 启用唤醒运行
-      set /a SETTINGS_COUNT+=1
-    )
-    if !SETTINGS_COUNT! EQU 0 (
-      echo    - 未应用额外设置
-    )
-    echo.
     @REM 使用 !TN! 引用任务名称
     set "POWERSHELL_CMD=try { $task = Get-ScheduledTask -TaskPath '\!TASK_FOLDER!\' -TaskName '!TN!' -ErrorAction Stop; "
     if /i "!DISABLE_POWER_LIMITS!"=="true" (
@@ -324,10 +311,10 @@ if !errorlevel! EQU 1 (
     powershell -Command "!POWERSHELL_CMD!"
     if !errorlevel! equ 0 (
       echo 设置已成功应用。
-    ) else (
+      ) else (
       echo 注意：设置修改可能未成功，请手动检查任务属性。
     )
-  ) else (
+    ) else (
     echo 任务创建失败，请检查错误信息。
   )
   echo.
@@ -348,7 +335,7 @@ if !errorlevel! EQU 2 (
   set "NEED_DELAY=0"
   cls
   echo ============================================================
-  echo                     Windows 计划任务 创建助手
+  echo  Windows 计划任务 创建助手
   echo ============================================================
   echo.
   echo 检测到程序路径：!TR!
