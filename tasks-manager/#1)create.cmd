@@ -7,49 +7,96 @@ setlocal enabledelayedexpansion
 call "%~dp0config.cmd"
 
 @REM ------------------------------------------------------------
-@REM 检查管理员权限
+@REM 转到管理员检测（避免在括号块内解析含 () 的路径）
 @REM ------------------------------------------------------------
-net session >nul 2>&1
-if !errorlevel! neq 0 (
-  if not "%~1"=="" (
-    if not exist "%~1" (
-      echo 错误：文件不存在，请将有效的程序/脚本文件拖拽到此脚本图标上。
-      pause
-      exit /b
-    )
-    echo 正在请求管理员权限...
-    powershell -Command "Start-Process -Verb RunAs -FilePath '%~f0' -ArgumentList \"%~1\""
-    ) else (
-    echo ============================================================
-    echo  Windows 计划任务 创建助手
-    echo ============================================================
-    echo.
-    :input_user_path
-    set "USER_PATH="
-    set /p "USER_PATH=请输入完整路径（不能为空）："
-    if "!USER_PATH!"=="" goto input_user_path
-    if not exist "!USER_PATH!" (
-      echo 错误：文件不存在，请重新输入正确的路径。
-      echo.
-      goto input_user_path
-    )
-    echo 正在请求管理员权限并传递路径...
-    powershell -Command "Start-Process -Verb RunAs -FilePath '%~f0' -ArgumentList \"!USER_PATH!\""
-  )
-  exit /b
-)
+goto check_admin
 
-@REM ------------------------------------------------------------
-@REM 管理员权限分支
-@REM ------------------------------------------------------------
-@REM 检查是否传递了路径参数（防止双击以管理员身份运行但无参数）
-if "%~1"=="" (
-  echo 错误：未传递程序路径，请通过拖拽或手动输入启动。
+:get_admin_and_run
+@REM 已通过拖拽图标携带路径参数，但当前无管理员权限，需提权
+if not exist "%~1" (
+  echo 错误：文件不存在，请将有效的程序/脚本文件拖拽到此脚本图标上。
   pause
   exit /b
 )
+echo 正在请求管理员权限...
+@REM 通过临时文件传递路径（避免空格/括号/中文被命令/环境变量拆散）
+> "%temp%\taskmgr_path.txt" echo "%~1"
+powershell -Command "Start-Process -Verb RunAs -FilePath '%~f0'"
+exit /b
 
-set "TR=%~1"
+:ask_path_and_admin
+@REM 无参数、无权限：先输入路径再提权
+echo ============================================================
+echo  Windows 计划任务 创建助手
+echo ============================================================
+echo.
+echo 请将程序/脚本文件拖拽到本窗口，或输入完整路径。
+echo （拖拽时若路径含空格，请确认引号包裹完整）
+echo.
+:input_user_path
+set "USER_PATH="
+set /p "USER_PATH=请输入完整路径（不能为空）："
+if "!USER_PATH!"=="" goto input_user_path
+set "USER_PATH=!USER_PATH:"=!"
+if not exist "!USER_PATH!" (
+  echo 错误：文件不存在，请重新输入正确的路径。
+  echo.
+  goto input_user_path
+)
+echo 正在请求管理员权限并传递路径...
+@REM 通过临时文件传递路径（避免空格/括号/中文被命令/环境变量拆散）
+> "%temp%\taskmgr_path.txt" echo "!USER_PATH!"
+powershell -Command "Start-Process -Verb RunAs -FilePath '%~f0'"
+exit /b
+
+:check_admin
+net session >nul 2>&1
+if !errorlevel! equ 0 goto admin_branch
+@REM 无权限
+if "%~1"=="" goto ask_path_and_admin
+goto get_admin_and_run
+
+@REM ------------------------------------------------------------
+@REM 管理员权限分支 - 获取路径（单次执行）
+@REM ------------------------------------------------------------
+:admin_branch
+@REM 优先从临时文件读取路径（提权后，完整保留空格/括号/中文）
+if exist "%temp%\taskmgr_path.txt" (
+  set /p "TR="<"%temp%\taskmgr_path.txt"
+  del "%temp%\taskmgr_path.txt" >nul 2>&1
+  set "TR=!TR:"=!"
+  goto process_path
+)
+@REM 其次使用命令行参数（直接以管理员身份运行并拖拽到脚本图标）
+if not "%~1"=="" (
+  set "TR=%~1"
+  goto process_path
+)
+
+echo ============================================================
+echo  Windows 计划任务 创建助手
+echo ============================================================
+echo.
+echo 请将程序/脚本文件拖拽到本窗口，或输入完整路径。
+echo.
+:input_path
+set "USER_PATH="
+set /p "USER_PATH=请输入完整路径（不能为空）："
+if "!USER_PATH!"=="" (
+  echo.
+  echo 已退出。
+  pause
+  exit /b
+)
+set "USER_PATH=!USER_PATH:"=!"
+if not exist "!USER_PATH!" (
+  echo 错误：文件不存在，请重新输入正确的路径。
+  echo.
+  goto input_path
+)
+set "TR=!USER_PATH!"
+
+:process_path
 for %%I in ("!TR!") do set "TN=%%~nI"
 echo ============================================================
 echo  Windows 计划任务 创建助手
