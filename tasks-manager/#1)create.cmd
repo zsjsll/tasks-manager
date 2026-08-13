@@ -6,97 +6,53 @@ setlocal enabledelayedexpansion
 @REM ------------------------------------------------------------
 call "%~dp0config.cmd"
 
-@REM ------------------------------------------------------------
-@REM 转到管理员检测（避免在括号块内解析含 () 的路径）
-@REM ------------------------------------------------------------
-goto check_admin
+@REM ============================================================
+@REM 主界面模式（非提权运行，可拖拽图标、可循环）
+@REM 说明：由于 UIPI 安全机制，已提权的窗口无法接收拖拽。
+@REM       因此主界面保持非提权，仅在真正执行 schtasks 时
+@REM       生成独立临时脚本并以管理员权限运行，从而让拖拽始终可用。
+@REM ============================================================
+:main_loop
+@REM 若拖拽文件到脚本图标（带有路径参数），直接使用该路径
+if not "%~1"=="" goto use_arg_path
 
-:get_admin_and_run
-@REM 已通过拖拽图标携带路径参数，但当前无管理员权限，需提权
-if not exist "%~1" (
-  echo 错误：文件不存在，请将有效的程序/脚本文件拖拽到此脚本图标上。
-  pause
-  exit /b
-)
-echo 正在请求管理员权限...
-@REM 通过临时文件传递路径（避免空格/括号/中文被命令/环境变量拆散）
-> "%temp%\taskmgr_path.txt" echo "%~1"
-powershell -Command "Start-Process -Verb RunAs -FilePath '%~f0'"
-exit /b
-
-:ask_path_and_admin
-@REM 无参数、无权限：先输入路径再提权
+cls
 echo ============================================================
 echo  Windows 计划任务 创建助手
 echo ============================================================
 echo.
 echo 请将程序/脚本文件拖拽到本窗口，或输入完整路径。
-echo （拖拽时若路径含空格，请确认引号包裹完整）
-echo.
-:input_user_path
-set "USER_PATH="
-set /p "USER_PATH=请输入完整路径（不能为空）："
-if "!USER_PATH!"=="" goto input_user_path
-set "USER_PATH=!USER_PATH:"=!"
-if not exist "!USER_PATH!" (
-  echo 错误：文件不存在，请重新输入正确的路径。
-  echo.
-  goto input_user_path
-)
-echo 正在请求管理员权限并传递路径...
-@REM 通过临时文件传递路径（避免空格/括号/中文被命令/环境变量拆散）
-> "%temp%\taskmgr_path.txt" echo "!USER_PATH!"
-powershell -Command "Start-Process -Verb RunAs -FilePath '%~f0'"
-exit /b
-
-:check_admin
-net session >nul 2>&1
-if !errorlevel! equ 0 goto admin_branch
-@REM 无权限
-if "%~1"=="" goto ask_path_and_admin
-goto get_admin_and_run
-
-@REM ------------------------------------------------------------
-@REM 管理员权限分支 - 获取路径（单次执行）
-@REM ------------------------------------------------------------
-:admin_branch
-@REM 优先从临时文件读取路径（提权后，完整保留空格/括号/中文）
-if exist "%temp%\taskmgr_path.txt" (
-  set /p "TR="<"%temp%\taskmgr_path.txt"
-  del "%temp%\taskmgr_path.txt" >nul 2>&1
-  set "TR=!TR:"=!"
-  goto process_path
-)
-@REM 其次使用命令行参数（直接以管理员身份运行并拖拽到脚本图标）
-if not "%~1"=="" (
-  set "TR=%~1"
-  goto process_path
-)
-
-echo ============================================================
-echo  Windows 计划任务 创建助手
-echo ============================================================
-echo.
-echo 请将程序/脚本文件拖拽到本窗口，或输入完整路径。
+echo 直接回车（不输入）可退出。
 echo.
 :input_path
-set "USER_PATH="
-set /p "USER_PATH=请输入完整路径（不能为空）："
-if "!USER_PATH!"=="" (
+set "TR="
+set /p "TR=请输入完整路径（不能为空）："
+if "!TR!"=="" (
   echo.
   echo 已退出。
   pause
   exit /b
 )
-set "USER_PATH=!USER_PATH:"=!"
-if not exist "!USER_PATH!" (
+set "TR=!TR:"=!"
+if not exist "!TR!" (
   echo 错误：文件不存在，请重新输入正确的路径。
   echo.
   goto input_path
 )
-set "TR=!USER_PATH!"
+goto got_path
 
-:process_path
+@REM 拖拽到脚本图标（带路径参数）时使用参数
+:use_arg_path
+set "TR=%~1"
+shift
+set "TR=!TR:"=!"
+if not exist "!TR!" (
+  echo 错误：文件不存在，请将有效的程序/脚本文件拖拽到此脚本。
+  pause
+  exit /b
+)
+
+:got_path
 for %%I in ("!TR!") do set "TN=%%~nI"
 echo ============================================================
 echo  Windows 计划任务 创建助手
@@ -106,17 +62,6 @@ echo 检测到程序路径：!TR!
 echo 任务名称：!TN!
 echo 任务组：!TASK_FOLDER!
 echo.
-
-@REM ------------------------------------------------------------
-@REM 确保任务文件夹存在（schtasks /create 会自动创建，预创建无妨）
-@REM ------------------------------------------------------------
-@REM schtasks /query /tn "\!TASK_FOLDER!\" >nul 2>&1
-@REM if !errorlevel! neq 0 (
-@REM  echo 正在创建任务文件夹 !TASK_FOLDER!...
-@REM  powershell -Command "New-Item -Path 'C:\Windows\System32\Tasks\!TASK_FOLDER!' -ItemType Directory -Force" >nul 2>&1
-@REM  echo 文件夹创建完成。
-@REM  echo.
-@REM )
 
 @REM ------------------------------------------------------------
 @REM 计划类型
@@ -334,61 +279,83 @@ echo.
 
 @REM ------------------------------------------------------------
 @REM 确认执行（按 N 返回计划类型选择）
+@REM 确认后生成一个独立临时执行脚本（位于 %temp%，路径简单），
+@REM 用管理员权限运行它，避免主脚本路径含 () 导致的解析问题。
+@REM 完成后返回主界面（可继续拖拽）。
 @REM ------------------------------------------------------------
 :input_confirm
 choice /c yn /n /m "确认执行？（Y 确认 / N 取消）："
-if !errorlevel! EQU 1 (
-  echo.
-  echo 正在创建任务...
-  !CMD! >nul 2>&1
-  set "ERRCODE=!errorlevel!"
-  echo.
-  if !ERRCODE! equ 0 (
-    echo 任务创建成功，正在应用设置...
-    echo.
-    @REM 使用 !TN! 引用任务名称
-    set "POWERSHELL_CMD=try { $task = Get-ScheduledTask -TaskPath '\!TASK_FOLDER!\' -TaskName '!TN!' -ErrorAction Stop; "
-    if /i "!DISABLE_POWER_LIMITS!"=="true" (
-      set "POWERSHELL_CMD=!POWERSHELL_CMD! $task.Settings.DisallowStartIfOnBatteries = $false; $task.Settings.StopIfGoingOnBatteries = $false; "
-    )
-    if /i "!WAKE_TO_RUN!"=="true" (
-      set "POWERSHELL_CMD=!POWERSHELL_CMD! $task.Settings.WakeToRun = $true; "
-    )
-    set "POWERSHELL_CMD=!POWERSHELL_CMD! Set-ScheduledTask -InputObject $task; Write-Host '设置已应用' } catch { Write-Host '更新设置失败：' $_.Exception.Message; exit 1 }"
-    powershell -Command "!POWERSHELL_CMD!"
-    if !errorlevel! equ 0 (
-      echo 设置已成功应用。
-      ) else (
-      echo 注意：设置修改可能未成功，请手动检查任务属性。
-    )
-    ) else (
-    echo 任务创建失败，请检查错误信息。
-  )
-  echo.
-  echo 任务创建流程结束。
-  pause
-  exit /b 0
+if !errorlevel! EQU 2 goto input_confirm_reset
+goto do_exec
+
+@REM ------------------------------------------------------------
+@REM 按 N 取消 / 重置：回到计划类型选择
+@REM ------------------------------------------------------------
+:input_confirm_reset
+set "SC_CHOICE="
+set "SC="
+set "ST="
+set "DELAY="
+set "RU_CHOICE="
+set "RU="
+set "RP="
+set "NEED_TIME=0"
+set "NEED_DELAY=0"
+cls
+echo ============================================================
+echo  Windows 计划任务 创建助手
+echo ============================================================
+echo.
+echo 检测到程序路径：!TR!
+echo 任务名称：!TN!
+echo 任务组：!TASK_FOLDER!
+echo.
+timeout /t 1 /nobreak >nul
+goto :input_sc
+
+@REM ------------------------------------------------------------
+@REM 生成临时执行脚本（移出括号块，避免含 () 的路径/名字提前闭合括号）
+@REM ------------------------------------------------------------
+:do_exec
+@REM 构建 schtasks 命令
+set "CMD_SCHTASKS=schtasks /create /tn "\!TASK_FOLDER!\!TN!" /tr "!TR!" /sc !SC! /F /RL HIGHEST"
+if not "!ST!"=="" set "CMD_SCHTASKS=!CMD_SCHTASKS! /st !ST!"
+if not "!DELAY!"=="" set "CMD_SCHTASKS=!CMD_SCHTASKS! /delay !DELAY!"
+if not "!RU!"=="" set "CMD_SCHTASKS=!CMD_SCHTASKS! /ru !RU!"
+if not "!RP!"=="" set "CMD_SCHTASKS=!CMD_SCHTASKS! /rp !RP!"
+
+@REM 构建 PowerShell 设置命令
+set "CMD_PS_1=try { $task = Get-ScheduledTask -TaskPath '\!TASK_FOLDER!\' -TaskName '!TN!' -ErrorAction Stop; "
+if /i "!DISABLE_POWER_LIMITS!"=="true" (
+  set "CMD_PS_1=!CMD_PS_1! $task.Settings.DisallowStartIfOnBatteries = $false; $task.Settings.StopIfGoingOnBatteries = $false; "
 )
-if !errorlevel! EQU 2 (
-  @REM 手动清空所有相关变量，实现“重置”效果
-  set "SC_CHOICE="
-  set "SC="
-  set "ST="
-  set "DELAY="
-  set "RU_CHOICE="
-  set "RU="
-  set "RP="
-  set "NEED_TIME=0"
-  set "NEED_DELAY=0"
-  cls
-  echo ============================================================
-  echo  Windows 计划任务 创建助手
-  echo ============================================================
-  echo.
-  echo 检测到程序路径：!TR!
-  echo 任务名称：!TN!
-  echo 任务组：!TASK_FOLDER!
-  echo.
-  timeout /t 1 /nobreak >nul
-  goto :input_sc
+if /i "!WAKE_TO_RUN!"=="true" (
+  set "CMD_PS_1=!CMD_PS_1! $task.Settings.WakeToRun = $true; "
 )
+set "CMD_PS_1=!CMD_PS_1! Set-ScheduledTask -InputObject $task; Write-Host '设置已应用' } catch { Write-Host '更新设置失败：' $_.Exception.Message }"
+
+@REM 生成临时执行脚本（逐行写入，路径简单，避开 -> 问题）
+@REM 不切换代码页，保持与主脚本一致的编码，避免中文乱码
+>  "%temp%\taskmgr_exec.cmd" echo @echo off
+>> "%temp%\taskmgr_exec.cmd" echo @chcp 936 ^>nul
+>> "%temp%\taskmgr_exec.cmd" echo echo.
+>> "%temp%\taskmgr_exec.cmd" echo echo 正在创建计划任务...
+>> "%temp%\taskmgr_exec.cmd" echo !CMD_SCHTASKS!
+>> "%temp%\taskmgr_exec.cmd" echo if errorlevel 1 ^(echo 任务创建失败 ^& pause ^& exit /b 1^)
+>> "%temp%\taskmgr_exec.cmd" echo echo 任务创建成功，正在应用设置...
+>> "%temp%\taskmgr_exec.cmd" echo powershell -Command "!CMD_PS_1!"
+>> "%temp%\taskmgr_exec.cmd" echo echo.
+>> "%temp%\taskmgr_exec.cmd" echo echo 任务创建完成，按任意键关闭本窗口...
+>> "%temp%\taskmgr_exec.cmd" echo pause ^>nul
+
+echo.
+echo 正在请求管理员权限并创建任务...
+echo （请在弹出窗口中确认提权）
+echo.
+powershell -Command "Start-Process -Verb RunAs -FilePath 'cmd.exe' -ArgumentList '/c','%temp%\taskmgr_exec.cmd' -Wait"
+echo.
+echo 任务创建流程结束。
+echo.
+echo 按任意键返回，可再次拖拽图标继续创建任务（或直接关闭窗口退出）...
+pause >nul
+goto main_loop
