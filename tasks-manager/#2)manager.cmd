@@ -23,7 +23,7 @@ if !errorlevel! neq 0 (
 :main
 cls
 echo ============================================================
-echo  /!TASK_FOLDER! 目录任务管理
+echo                     !TASK_FOLDER! 目录任务管理
 echo ============================================================
 
 set "MAPFILE=%temp%\taskmap.txt"
@@ -41,16 +41,16 @@ if !MAPSIZE! EQU 0 (
 )
 
 @REM ------------------------------------------------------------
-@REM 选择任务阶段：仅显示一次提示，循环内只读输入
+@REM 选择任务阶段：使用 choice 单键选择
 @REM ------------------------------------------------------------
 echo.
 echo 输入编号进行操作，或输入 0 退出
 echo.
 :choose_task_loop
-set /p "CHOICE=请输入编号： "
+choice /c 1234567890 /n /m "请输入编号："
+set "CHOICE=!errorlevel!"
 
-if "!CHOICE!"=="0" goto :eof
-if "!CHOICE!"=="" goto choose_task_loop
+if "!CHOICE!"=="10" goto :eof
 
 @REM 根据编号查找任务名
 set "TASKNAME="
@@ -80,16 +80,13 @@ echo  [6] 返回上级菜单
 echo  --------------------------------------
 echo.
 :action_loop
-set /p "ACT=请输入编号： "
+choice /c 123456 /n /m "请输入编号："
+set "ACT=!errorlevel!"
 
-if "!ACT!"=="" goto action_loop
 if "!ACT!"=="6" (
   set "CHOICE="
   goto main
 )
-
-@REM 判断是否为有效操作(1-5)，若不是则重新输入
-if not "!ACT!"=="1" if not "!ACT!"=="2" if not "!ACT!"=="3" if not "!ACT!"=="4" if not "!ACT!"=="5" goto action_loop
 
 @REM 有效操作，先空一行再继续
 echo.
@@ -101,10 +98,14 @@ if "!ACT!"=="1" (
   if !errorlevel! neq 0 (
     echo.
     echo [失败] 操作返回错误代码 !errorlevel!
+    echo.
+    echo 请查看上方失败原因，按任意键返回主菜单...
+    pause >nul
+  ) else (
+    echo.
+    echo 2 秒后自动返回主菜单...
+    timeout /t 2 /nobreak >nul
   )
-  echo.
-  echo 按任意键返回主菜单...
-  pause >nul
   goto main
 )
 
@@ -115,10 +116,14 @@ if "!ACT!"=="2" (
   if !errorlevel! neq 0 (
     echo.
     echo [失败] 操作返回错误代码 !errorlevel!
+    echo.
+    echo 请查看上方失败原因，按任意键返回主菜单...
+    pause >nul
+  ) else (
+    echo.
+    echo 2 秒后自动返回主菜单...
+    timeout /t 2 /nobreak >nul
   )
-  echo.
-  echo 按任意键返回主菜单...
-  pause >nul
   goto main
 )
 
@@ -129,10 +134,14 @@ if "!ACT!"=="3" (
   if !errorlevel! neq 0 (
     echo.
     echo [失败] 操作返回错误代码 !errorlevel!（可能任务未运行）
+    echo.
+    echo 请查看上方失败原因，按任意键返回主菜单...
+    pause >nul
+  ) else (
+    echo.
+    echo 2 秒后自动返回主菜单...
+    timeout /t 2 /nobreak >nul
   )
-  echo.
-  echo 按任意键返回主菜单...
-  pause >nul
   goto main
 )
 
@@ -143,29 +152,47 @@ if "!ACT!"=="4" (
   if !errorlevel! neq 0 (
     echo.
     echo [失败] 操作返回错误代码 !errorlevel!（可能任务未就绪）
+    echo.
+    echo 请查看上方失败原因，按任意键返回主菜单...
+    pause >nul
+  ) else (
+    echo.
+    echo 2 秒后自动返回主菜单...
+    timeout /t 2 /nobreak >nul
   )
-  echo.
-  echo 按任意键返回主菜单...
-  pause >nul
   goto main
 )
 
-if "!ACT!"=="5" (
-  echo 警告：即将删除任务 "!TASKNAME!"
-  set /p "CONFIRM=确认删除？（输入 y 确认）： "
-  if /i "!CONFIRM!"=="y" (
-    echo 正在执行： schtasks /delete /tn "\!TASK_FOLDER!\!TASKNAME!" /f
-    echo.
-    schtasks /delete /tn "\!TASK_FOLDER!\!TASKNAME!" /f
-    if !errorlevel! neq 0 (
-      echo.
-      echo [失败] 操作返回错误代码 !errorlevel!
-    )
-  ) else (
-    echo 取消删除。
-  )
+if "!ACT!"=="5" goto delete_task
+
+@REM ------------------------------------------------------------
+@REM 删除任务（带确认循环：输入无效时重新询问）
+@REM ------------------------------------------------------------
+:delete_task
+echo 警告：即将删除任务 "!TASKNAME!"
+echo.
+:confirm_delete
+choice /c yn /n /m "确认删除？（y 确认 / n 取消）："
+if "!errorlevel!"=="1" (
+  echo 正在执行： schtasks /delete /tn "\!TASK_FOLDER!\!TASKNAME!" /f
   echo.
-  echo 按任意键返回主菜单...
-  pause >nul
-  goto main
+  schtasks /delete /tn "\!TASK_FOLDER!\!TASKNAME!" /f
+  if !errorlevel! neq 0 (
+    echo.
+    echo [失败] 操作返回错误代码 !errorlevel!
+    echo.
+    echo 请查看上方失败原因，按任意键返回主菜单...
+    pause >nul
+  ) else (
+    echo.
+    echo 2 秒后自动返回主菜单...
+    timeout /t 2 /nobreak >nul
+  )
+) else (
+  echo 取消删除。
+  echo.
+  echo 2 秒后自动返回主菜单...
+  timeout /t 2 /nobreak >nul
 )
+set "CONFIRM="
+goto main

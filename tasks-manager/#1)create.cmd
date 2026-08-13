@@ -26,7 +26,7 @@ if !errorlevel! neq 0 (
     echo.
     :input_user_path
     set "user_path="
-    set /p "user_path=请输入完整路径（不能为空）： "
+    set /p "user_path=请输入完整路径（不能为空）："
     if "!user_path!"=="" goto input_user_path
     if not exist "!user_path!" (
       echo 错误：文件不存在，请重新输入正确的路径。
@@ -88,7 +88,7 @@ echo  7. 一次 (ONCE)
 echo  --------------------------------------
 set "sc_choice="
 echo.
-set /p "sc_choice=请输入选项编号 [1-7]： "
+set /p "sc_choice=请输入选项编号 [1-7]："
 if "!sc_choice!"=="" set "sc_choice=1"
 if "!sc_choice!"=="1" set "sc=ONLOGON"
 if "!sc_choice!"=="2" set "sc=ONSTART"
@@ -122,7 +122,7 @@ if "!sc!"=="ONIDLE" set "need_delay=1"
 if !need_time! EQU 1 (
   :input_st
   set "st="
-  set /p "st=请输入开始时间（如 8:00 或 08:00，直接回车=06:00）： "
+  set /p "st=请输入开始时间（如 8:00 或 08:00，直接回车=06:00）："
   if "!st!"=="" set "st=06:00"
   for /f "tokens=1,2 delims=:" %%a in ("!st!") do (
     set "hour=%%a"
@@ -169,7 +169,7 @@ if !need_delay! EQU 1 (
   echo.
   set "delay_sec="
   :input_delay
-  set /p "delay_sec=请输入延迟秒数（输入数字，如 30 表示 30 秒，直接回车=0）： "
+  set /p "delay_sec=请输入延迟秒数（输入数字，如 30 表示 30 秒，直接回车=0）："
   if "!delay_sec!"=="" set "delay_sec=0"
   echo !delay_sec!|findstr /r "^[0-9][0-9]*$" >nul
   if !errorlevel! neq 0 (
@@ -225,7 +225,7 @@ echo  --------------------------------------
 echo.
 :input_ru
 set "ru_choice="
-set /p "ru_choice=请输入选项编号 [1-3]（直接回车=1）： "
+set /p "ru_choice=请输入选项编号 [1-3]（直接回车=1）："
 if "!ru_choice!"=="" set "ru_choice=1"
 if "!ru_choice!"=="1" (
   set "ru="
@@ -236,14 +236,14 @@ if "!ru_choice!"=="1" (
 ) else if "!ru_choice!"=="3" (
   :input_ru_custom
   set "ru="
-  set /p "ru=请输入用户名（格式：域名\用户名）： "
+  set /p "ru=请输入用户名（格式：域名\用户名）："
   if "!ru!"=="" (
     echo 用户名不能为空。
     echo.
     goto input_ru_custom
   )
   set "rp="
-  set /p "rp=请输入该用户的密码： "
+  set /p "rp=请输入该用户的密码："
 ) else (
   echo 无效选项，请重新输入。
   echo.
@@ -274,7 +274,7 @@ echo.
 @REM ------------------------------------------------------------
 :input_confirm
 set "confirm="
-set /p "confirm=确认执行？请输入 Y 或 N： "
+set /p "confirm=确认执行？请输入 Y 或 N："
 if /i "!confirm!"=="Y" (
   echo.
   echo 正在创建任务...
