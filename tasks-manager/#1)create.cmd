@@ -29,9 +29,9 @@ set "TR="
 set /p "TR=请输入完整路径（不能为空）："
 if "!TR!"=="" (
   echo.
-  echo 已退出。
-  pause
-  exit /b
+  echo 输入为空，请重新输入路径。
+  echo.
+  goto input_path
 )
 set "TR=!TR:"=!"
 if not exist "!TR!" (
