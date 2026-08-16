@@ -13,6 +13,8 @@ call "%~dp0config.cmd"
 @REM       生成独立临时脚本并以管理员权限运行，从而让拖拽始终可用。
 @REM ============================================================
 :main_loop
+@REM 若拖拽文件到脚本图标（带有路径参数），直接使用该路径（优先级最高）
+if not "%~1"=="" goto use_arg_path
 @REM 若配置文件设置了 TASK_NAME，则直接作为任务名使用（与路径独立判断）
 if defined TASK_NAME (
   set "TN=!TASK_NAME!"
@@ -27,8 +29,6 @@ if defined TARGET_PATH (
   set "TARGET_PATH="
   goto config_got_path
 )
-@REM 若拖拽文件到脚本图标（带有路径参数），直接使用该路径
-if not "%~1"=="" goto use_arg_path
 
 cls
 echo ============================================================
