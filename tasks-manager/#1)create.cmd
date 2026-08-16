@@ -13,6 +13,20 @@ call "%~dp0config.cmd"
 @REM       生成独立临时脚本并以管理员权限运行，从而让拖拽始终可用。
 @REM ============================================================
 :main_loop
+@REM 若配置文件设置了 TASK_NAME，则直接作为任务名使用（与路径独立判断）
+if defined TASK_NAME (
+  set "TN=!TASK_NAME!"
+  set "TASK_NAME="
+)
+@REM 若配置文件设置了 TARGET_PATH，则直接用它作为路径并跳过输入
+if defined TARGET_PATH (
+  pushd "%~dp0"
+  set "TR=!TARGET_PATH!"
+  for %%I in ("!TR!") do set "TR=%%~fI"
+  popd
+  set "TARGET_PATH="
+  goto config_got_path
+)
 @REM 若拖拽文件到脚本图标（带有路径参数），直接使用该路径
 if not "%~1"=="" goto use_arg_path
 
@@ -51,8 +65,19 @@ if not exist "!TR!" (
   exit /b
 )
 
+@REM 配置文件路径：校验转换后的路径存在后进入正常流程
+:config_got_path
+set "TR=!TR:"=!"
+if not exist "!TR!" (
+  echo 错误：配置中 TARGET_PATH 指定的文件不存在，请检查 config.cmd。
+  echo.
+  pause
+  exit /b
+)
+goto got_path
+
 :got_path
-for %%I in ("!TR!") do set "TN=%%~nI"
+if "!TN!"=="" for %%I in ("!TR!") do set "TN=%%~nI"
 echo ============================================================
 echo  Windows 计划任务 创建助手
 echo ============================================================
