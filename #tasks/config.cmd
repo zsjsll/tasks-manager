@@ -19,8 +19,7 @@ set "TASK_NAME="
 set "TASK_SCHEDULE_TYPE="
 
 @REM ④ 开始时间（第四个交互项）
-@REM    格式：时:分，如 08:00
-@REM    格式：时，如 8
+@REM    格式：时:分，如 06:00 或 6:00 或 6
 @REM    仅对需要时间的计划类型（DAILY/WEEKLY/MONTHLY/ONCE）生效
 @REM    留空则进入交互式输入
 set "TASK_START_TIME="

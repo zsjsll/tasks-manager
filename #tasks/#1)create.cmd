@@ -188,7 +188,7 @@ if !NEED_TIME! EQU 1 (
   )
   :input_st
   set "ST="
-  set /p "ST=请输入开始时间（如 8:00 或 08:00，直接回车=06:00）："
+  set /p "ST=请输入开始时间（如 6:00 或 06:00 也可以 6，直接回车=06:00）："
   if "!ST!"=="" set "ST=06:00"
   :st_check
   for /f "tokens=1,2 delims=:" %%a in ("!ST!") do (
