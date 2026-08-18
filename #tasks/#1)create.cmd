@@ -349,7 +349,16 @@ echo ============================================================
 echo.
 echo 即将执行以下命令创建计划任务：
 echo.
-set "CMD=schtasks /create /tn "\!TASK_FOLDER!\!TN!" /tr "!TR!" /sc !SC! /F /RL HIGHEST"
+@REM 按窗口样式构建 /tr 的实际值（TR_ARG）
+@REM  MINIMIZED：用 cmd /c start "" /min 包装，实现最小化启动
+@REM     （start 第一个引号参数是窗口标题，必须用空标题 "" 占位，否则程序不启动）
+@REM  其它/留空：直接执行程序（正常启动）
+@REM  说明：schtasks 的 /tr 需要外层引号 + 内部 \" 转义，见下方 CMD 拼接
+set "TR_ARG=!TR!"
+if /i "!TASK_WINDOW_STYLE!"=="MINIMIZED" (
+  set "TR_ARG=cmd /c start \^"\^" /min \^"!TR!\^""
+)
+set "CMD=schtasks /create /tn "\!TASK_FOLDER!\!TN!" /tr "!TR_ARG!" /sc !SC! /F /RL HIGHEST"
 if not "!ST!"=="" set "CMD=!CMD! /st !ST!"
 if not "!DELAY!"=="" set "CMD=!CMD! /delay !DELAY!"
 if not "!RU!"=="" set "CMD=!CMD! /ru !RU!"
@@ -361,6 +370,13 @@ echo.
 echo [配置文件] 将要应用的设置：
 echo.
 set "SETTINGS_COUNT=0"
+if /i "!TASK_WINDOW_STYLE!"=="MINIMIZED" (
+  echo  - 程序窗口：最小化启动
+  set /a SETTINGS_COUNT+=1
+) else (
+  echo  - 程序窗口：正常启动
+  set /a SETTINGS_COUNT+=1
+)
 if /i "!DISABLE_POWER_LIMITS!"=="true" (
   echo  - 禁用电池限制（允许充电时运行）
   set /a SETTINGS_COUNT+=1
@@ -416,8 +432,13 @@ goto :input_sc
 @REM 生成临时执行脚本（移出括号块，避免含 () 的路径/名字提前闭合括号）
 @REM ------------------------------------------------------------
 :do_exec
+@REM 按窗口样式构建 /tr 的实际值（TR_ARG），与预览区逻辑保持一致
+set "TR_ARG=!TR!"
+if /i "!TASK_WINDOW_STYLE!"=="MINIMIZED" (
+  set "TR_ARG=cmd /c start \^"\^" /min \^"!TR!\^""
+)
 @REM 构建 schtasks 命令
-set "CMD_SCHTASKS=schtasks /create /tn "\!TASK_FOLDER!\!TN!" /tr "!TR!" /sc !SC! /F /RL HIGHEST"
+set "CMD_SCHTASKS=schtasks /create /tn "\!TASK_FOLDER!\!TN!" /tr "!TR_ARG!" /sc !SC! /F /RL HIGHEST"
 if not "!ST!"=="" set "CMD_SCHTASKS=!CMD_SCHTASKS! /st !ST!"
 if not "!DELAY!"=="" set "CMD_SCHTASKS=!CMD_SCHTASKS! /delay !DELAY!"
 if not "!RU!"=="" set "CMD_SCHTASKS=!CMD_SCHTASKS! /ru !RU!"

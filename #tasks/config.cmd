@@ -47,6 +47,11 @@ set "TASK_RUN_PASSWORD="
 @REM 任务文件夹名称（在计划任务中的路径，如 #self 对应 \#self\）
 set "TASK_FOLDER=@tasks"
 
+@REM 程序窗口启动方式（s 思路二：用 cmd /c start /min 包装）
+@REM    MINIMIZED=最小化启动  /  NORMAL=正常启动（默认，直接执行程序）
+@REM    其它值或留空=正常启动
+set "TASK_WINDOW_STYLE=MINIMIZED"
+
 @REM 是否禁用电池限制（允许充电时运行）(true/false)
 set "DISABLE_POWER_LIMITS=true"
 
