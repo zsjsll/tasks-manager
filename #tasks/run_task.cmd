@@ -34,7 +34,7 @@ if /i "!TASK_WINDOW_STYLE!"=="MINIMIZED" (
 set "RC=0"
 if /i "!TASK_WINDOW_STYLE!"=="VBS" (
   echo 正在生成 VBS 中转文件...>> "%temp%\taskmgr_result.txt"
-  call "%~dp0gen_vbs.cmd" "!TR!" !TASK_VBS_STYLE! >> "%temp%\taskmgr_result.txt" 2>&1
+  call "%~dp0gen_vbs.cmd" "!TR!" !TASK_VBS_STYLE! "!VBS_ALLOW_OVERWRITE!" >> "%temp%\taskmgr_result.txt" 2>&1
   if errorlevel 1 (
     echo [失败] VBS 生成失败！>> "%temp%\taskmgr_result.txt"
     set "RC=1"

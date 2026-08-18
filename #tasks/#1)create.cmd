@@ -413,6 +413,45 @@ echo ============================================================
 echo.
 
 @REM ------------------------------------------------------------
+@REM VBS 同名文件检测（仅在 VBS 方案 + 开关开启时生效）
+@REM 若目标程序同目录已存在同名 .vbs，则提示用户：
+@REM   覆盖 = 将其备份为 .vbs.bak 后重新生成（强制执行）
+@REM   退出 = 不做任何修改，退出整个创建流程，由用户手动处理
+@REM 不在提权前弹窗提示而将实际备份放到提权进程执行，
+@REM 以保证对受保护目录也有写权限，且与既有提权逻辑一致。
+@REM ------------------------------------------------------------
+set "VBS_ALLOW_OVERWRITE="
+if /i "!TASK_WINDOW_STYLE!"=="VBS" (
+  if /i "!VBS_OVERWRITE_CONFIRM!"=="true" (
+    if exist "!TR_DIR!!BASE_NAME!.vbs" (
+      echo.
+      echo ============================================================
+      echo  检测到同名 VBS 中转文件已存在：
+      echo   !TR_DIR!!BASE_NAME!.vbs
+      echo.
+      echo  继续将覆盖该文件，旧文件会被备份为同名 .bak。
+      echo ============================================================
+      echo.
+      :vbs_overwrite_choice
+      choice /c oc /n /m "请选择 （O=强制覆盖/备份  C=退出程序手动处理）："
+      if "!errorlevel!"=="1" (
+        set "VBS_ALLOW_OVERWRITE=true"
+        echo 已选择：强制覆盖，旧文件将备份为 .vbs.bak。
+        echo.
+      ) else if "!errorlevel!"=="2" (
+        echo.
+        echo 已退出，未做任何修改。请手动处理该 .vbs 文件后再运行。
+        echo.
+        pause
+        exit /b
+      ) else (
+        goto vbs_overwrite_choice
+      )
+    )
+  )
+)
+
+@REM ------------------------------------------------------------
 @REM 执行前确认（Y 确认后提权执行 run_task.cmd；N 返回计划类型重新设置）
 @REM ------------------------------------------------------------
 :input_confirm
@@ -473,6 +512,7 @@ if /i "!TASK_WINDOW_STYLE!"=="MINIMIZED" (
 >> "%temp%\taskmgr_params.cmd" echo set "TASK_FOLDER=!TASK_FOLDER!"
 >> "%temp%\taskmgr_params.cmd" echo set "TASK_WINDOW_STYLE=!TASK_WINDOW_STYLE!"
 >> "%temp%\taskmgr_params.cmd" echo set "TASK_VBS_STYLE=!TASK_VBS_STYLE!"
+>> "%temp%\taskmgr_params.cmd" echo set "VBS_ALLOW_OVERWRITE=!VBS_ALLOW_OVERWRITE!"
 >> "%temp%\taskmgr_params.cmd" echo set "DISABLE_POWER_LIMITS=!DISABLE_POWER_LIMITS!"
 >> "%temp%\taskmgr_params.cmd" echo set "WAKE_TO_RUN=!WAKE_TO_RUN!"
 

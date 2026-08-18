@@ -73,6 +73,11 @@ set "TASK_VBS_STYLE=7"
 @REM 是否在删除任务时同步删除对应的 VBS 文件 (true/false)
 set "DELETE_VBS_ON_REMOVE=false"
 
+@REM 当 TASK_WINDOW_STYLE=VBS 且目标同名 .vbs 已存在时，是否提示「覆盖(备份)/退出」 (true/false)
+@REM   true = 提示：可覆盖（旧文件备份为 .bak）或退出程序手动处理（默认）
+@REM   false = 不提示，直接静默覆盖（不生成 .bak 备份）
+set "VBS_OVERWRITE_CONFIRM=true"
+
 @REM 是否禁用电池限制（允许充电时运行）(true/false)
 set "DISABLE_POWER_LIMITS=true"
 
