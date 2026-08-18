@@ -77,7 +77,13 @@ if not exist "!TR!" (
 goto got_path
 
 :got_path
-if "!TN!"=="" for %%I in ("!TR!") do set "TN=%%~nI"
+@REM 解析任务名、程序基础名、程序所在目录
+@REM  TN=任务名（未显式设置时取程序名）；BASE_NAME=程序名无扩展；TR_DIR=程序目录（含末尾\）
+for %%I in ("!TR!") do (
+  if not defined TN set "TN=%%~nI"
+  set "BASE_NAME=%%~nI"
+  set "TR_DIR=%%~dpI"
+)
 echo ============================================================
 echo  Windows 计划任务 创建助手
 echo ============================================================
@@ -230,11 +236,19 @@ if !NEED_DELAY! EQU 1 (
   echo.
   echo 计划类型为 !SC!，支持延迟执行。
   echo.
-  @REM 若配置了 TASK_DELAY_SECONDS，则直接使用并跳过交互
+  @REM 若配置了 TASK_DELAY_SECONDS，则校验后直接使用并跳过交互
   if defined TASK_DELAY_SECONDS (
-    set "DELAY_SEC=!TASK_DELAY_SECONDS!"
+    @REM 校验配置值是否为纯数字；非法则明确提示并回到交互
+    echo !TASK_DELAY_SECONDS!|findstr /r "^[0-9][0-9]*$" >nul
+    if !errorlevel! equ 0 (
+      set "DELAY_SEC=!TASK_DELAY_SECONDS!"
+      set "TASK_DELAY_SECONDS="
+      goto :delay_check
+    )
+    echo [配置] config.cmd 中 TASK_DELAY_SECONDS 非法（!TASK_DELAY_SECONDS!），必须是纯数字（秒）。
+    echo 已忽略该配置，进入交互式输入。
+    echo.
     set "TASK_DELAY_SECONDS="
-    goto :delay_check
   )
   set "DELAY_SEC="
   :input_delay
@@ -352,11 +366,14 @@ echo.
 @REM 按窗口样式构建 /tr 的实际值（TR_ARG）
 @REM  MINIMIZED：用 cmd /c start "" /min 包装，实现最小化启动
 @REM     （start 第一个引号参数是窗口标题，必须用空标题 "" 占位，否则程序不启动）
+@REM  VBS：指向与程序同目录同名的 .vbs（由 gen_vbs.cmd 生成，运行时 ShellExecute 指定窗口样式）
 @REM  其它/留空：直接执行程序（正常启动）
 @REM  说明：schtasks 的 /tr 需要外层引号 + 内部 \" 转义，见下方 CMD 拼接
 set "TR_ARG=!TR!"
 if /i "!TASK_WINDOW_STYLE!"=="MINIMIZED" (
   set "TR_ARG=cmd /c start \^"\^" /min \^"!TR!\^""
+) else if /i "!TASK_WINDOW_STYLE!"=="VBS" (
+  set "TR_ARG=!TR_DIR!!BASE_NAME!.vbs"
 )
 set "CMD=schtasks /create /tn "\!TASK_FOLDER!\!TN!" /tr "!TR_ARG!" /sc !SC! /F /RL HIGHEST"
 if not "!ST!"=="" set "CMD=!CMD! /st !ST!"
@@ -371,7 +388,10 @@ echo [配置文件] 将要应用的设置：
 echo.
 set "SETTINGS_COUNT=0"
 if /i "!TASK_WINDOW_STYLE!"=="MINIMIZED" (
-  echo  - 程序窗口：最小化启动
+  echo  - 程序窗口：最小化启动（cmd /c start）
+  set /a SETTINGS_COUNT+=1
+) else if /i "!TASK_WINDOW_STYLE!"=="VBS" (
+  echo  - 程序窗口：VBS 中转，窗口样式 !TASK_VBS_STYLE!（0-10）
   set /a SETTINGS_COUNT+=1
 ) else (
   echo  - 程序窗口：正常启动
@@ -393,14 +413,11 @@ echo ============================================================
 echo.
 
 @REM ------------------------------------------------------------
-@REM 确认执行（按 N 返回计划类型选择）
-@REM 确认后生成一个独立临时执行脚本（位于 %temp%，路径简单），
-@REM 用管理员权限运行它，避免主脚本路径含 () 导致的解析问题。
-@REM 完成后返回主界面（可继续拖拽）。
+@REM 执行前确认（Y 确认后提权执行 run_task.cmd；N 返回计划类型重新设置）
 @REM ------------------------------------------------------------
 :input_confirm
-choice /c yn /n /m "确认执行？（Y 确认 / N 取消）："
-if !errorlevel! EQU 2 goto input_confirm_reset
+choice /c yn /n /m "确认执行？（Y 确认 / N 取消并重新设置）："
+if "!errorlevel!"=="2" goto input_confirm_reset
 goto do_exec
 
 @REM ------------------------------------------------------------
@@ -436,46 +453,68 @@ goto :input_sc
 set "TR_ARG=!TR!"
 if /i "!TASK_WINDOW_STYLE!"=="MINIMIZED" (
   set "TR_ARG=cmd /c start \^"\^" /min \^"!TR!\^""
+) else if /i "!TASK_WINDOW_STYLE!"=="VBS" (
+  set "TR_ARG=!TR_DIR!!BASE_NAME!.vbs"
 )
-@REM 构建 schtasks 命令
-set "CMD_SCHTASKS=schtasks /create /tn "\!TASK_FOLDER!\!TN!" /tr "!TR_ARG!" /sc !SC! /F /RL HIGHEST"
-if not "!ST!"=="" set "CMD_SCHTASKS=!CMD_SCHTASKS! /st !ST!"
-if not "!DELAY!"=="" set "CMD_SCHTASKS=!CMD_SCHTASKS! /delay !DELAY!"
-if not "!RU!"=="" set "CMD_SCHTASKS=!CMD_SCHTASKS! /ru !RU!"
-if not "!RP!"=="" set "CMD_SCHTASKS=!CMD_SCHTASKS! /rp !RP!"
+@REM ------------------------------------------------------------
+@REM 写参数文件（供提权脚本 run_task.cmd 读取）
+@REM 注意：run_task.cmd 内部自己构建 schtasks 命令和 PowerShell 设置，
+@REM       因此这里只需把原始参数写入文件。
+@REM ------------------------------------------------------------
+>  "%temp%\taskmgr_params.cmd" echo set "TR=!TR!"
+>> "%temp%\taskmgr_params.cmd" echo set "TN=!TN!"
+>> "%temp%\taskmgr_params.cmd" echo set "TR_DIR=!TR_DIR!"
+>> "%temp%\taskmgr_params.cmd" echo set "BASE_NAME=!BASE_NAME!"
+>> "%temp%\taskmgr_params.cmd" echo set "SC=!SC!"
+>> "%temp%\taskmgr_params.cmd" echo set "ST=!ST!"
+>> "%temp%\taskmgr_params.cmd" echo set "DELAY=!DELAY!"
+>> "%temp%\taskmgr_params.cmd" echo set "RU=!RU!"
+>> "%temp%\taskmgr_params.cmd" echo set "RP=!RP!"
+>> "%temp%\taskmgr_params.cmd" echo set "TASK_FOLDER=!TASK_FOLDER!"
+>> "%temp%\taskmgr_params.cmd" echo set "TASK_WINDOW_STYLE=!TASK_WINDOW_STYLE!"
+>> "%temp%\taskmgr_params.cmd" echo set "TASK_VBS_STYLE=!TASK_VBS_STYLE!"
+>> "%temp%\taskmgr_params.cmd" echo set "DISABLE_POWER_LIMITS=!DISABLE_POWER_LIMITS!"
+>> "%temp%\taskmgr_params.cmd" echo set "WAKE_TO_RUN=!WAKE_TO_RUN!"
 
-@REM 构建 PowerShell 设置命令
-set "CMD_PS_1=try { $task = Get-ScheduledTask -TaskPath '\!TASK_FOLDER!\' -TaskName '!TN!' -ErrorAction Stop; "
-if /i "!DISABLE_POWER_LIMITS!"=="true" (
-  set "CMD_PS_1=!CMD_PS_1! $task.Settings.DisallowStartIfOnBatteries = $false; $task.Settings.StopIfGoingOnBatteries = $false; "
-)
-if /i "!WAKE_TO_RUN!"=="true" (
-  set "CMD_PS_1=!CMD_PS_1! $task.Settings.WakeToRun = $true; "
-)
-set "CMD_PS_1=!CMD_PS_1! Set-ScheduledTask -InputObject $task; Write-Host '设置已应用' } catch { Write-Host '更新设置失败：' $_.Exception.Message }"
-
-@REM 生成临时执行脚本（逐行写入，路径简单，避开 -> 问题）
-@REM 不切换代码页，保持与主脚本一致的编码，避免中文乱码
->  "%temp%\taskmgr_exec.cmd" echo @echo off
->> "%temp%\taskmgr_exec.cmd" echo @chcp 936 ^>nul
->> "%temp%\taskmgr_exec.cmd" echo echo.
->> "%temp%\taskmgr_exec.cmd" echo echo 正在创建计划任务...
->> "%temp%\taskmgr_exec.cmd" echo !CMD_SCHTASKS!
->> "%temp%\taskmgr_exec.cmd" echo if errorlevel 1 ^(echo 任务创建失败 ^& pause ^& exit /b 1^)
->> "%temp%\taskmgr_exec.cmd" echo echo 任务创建成功，正在应用设置...
->> "%temp%\taskmgr_exec.cmd" echo powershell -Command "!CMD_PS_1!"
->> "%temp%\taskmgr_exec.cmd" echo echo.
->> "%temp%\taskmgr_exec.cmd" echo echo 任务创建完成，按任意键关闭本窗口...
->> "%temp%\taskmgr_exec.cmd" echo pause ^>nul
+@REM 清空旧结果文件
+> "%temp%\taskmgr_result.txt" echo.
 
 echo.
 echo 正在请求管理员权限并创建任务...
 echo （请在弹出窗口中确认提权）
 echo.
-powershell -Command "Start-Process -Verb RunAs -FilePath 'cmd.exe' -ArgumentList '/c','%temp%\taskmgr_exec.cmd' -Wait"
+@REM 提权运行 run_task.cmd（-PassThru 取退出码；UAC 被拒时 $p 为空 → 退出码 999）
+@REM 注意：%~dp0run_task.cmd 路径当前无空格，可直接传给 cmd.exe；若项目移到含空格路径需加引号
+call powershell -NoProfile -Command "$p = Start-Process -Verb RunAs -PassThru -Wait -FilePath 'cmd.exe' -ArgumentList '/c','%~dp0run_task.cmd'; if ($p) { exit $p.ExitCode } else { exit 999 }"
+set "EXITCODE=!errorlevel!"
+
+@REM 读取结果文件并显示
 echo.
-echo 任务创建流程结束。
+echo ============================================================
+echo  执行结果：
+echo ============================================================
+if exist "%temp%\taskmgr_result.txt" (
+  type "%temp%\taskmgr_result.txt"
+) else (
+  echo （未获取到结果输出）
+)
+echo ============================================================
+if "!EXITCODE!"=="0" (
+  echo 任务创建成功。
+) else if "!EXITCODE!"=="999" (
+  echo 未获得管理员权限，任务未创建。
+) else (
+  echo 任务创建失败（退出码 !EXITCODE!），详细见上方。
+)
 echo.
-echo 按任意键返回，可再次拖拽图标继续创建任务（或直接关闭窗口退出）...
-pause >nul
-goto main_loop
+
+@REM 按 RUN_LOOP 决定：回到主界面 or 退出
+if /i "!RUN_LOOP!"=="true" (
+  echo 按任意键回到主界面，可继续创建下一个任务...
+  pause >nul
+  goto main_loop
+) else (
+  echo 按任意键退出...
+  pause >nul
+  exit /b
+)

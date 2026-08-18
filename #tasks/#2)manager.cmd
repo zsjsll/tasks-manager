@@ -174,6 +174,14 @@ echo.
 :confirm_delete
 choice /c yn /n /m "确认删除？（y 确认 / n 取消）："
 if "!errorlevel!"=="1" (
+  @REM 若开启 VBS 清理，先记录该任务指向的 .vbs 路径（须在删除任务前查询）
+  set "CLEAN_VBS="
+  if /i "!DELETE_VBS_ON_REMOVE!"=="true" (
+    set "VBSQ=%temp%\vbsquery_!TASKNAME!.txt"
+    > "!VBSQ!" powershell -NoProfile -Command "$t=Get-ScheduledTask -TaskPath '\!TASK_FOLDER!\' -TaskName '!TASKNAME!' -ErrorAction SilentlyContinue; if($t){$e=$t.Actions.Execute; if($e -like '*.vbs'){Write-Output $e}}"
+    for /f "usebackq delims=" %%P in ("!VBSQ!") do set "CLEAN_VBS=%%P"
+    del /q "!VBSQ!" 2>nul
+  )
   echo 正在执行： schtasks /delete /tn "\!TASK_FOLDER!\!TASKNAME!" /f
   echo.
   schtasks /delete /tn "\!TASK_FOLDER!\!TASKNAME!" /f
@@ -185,6 +193,16 @@ if "!errorlevel!"=="1" (
     pause >nul
     ) else (
     echo.
+    @REM 删除成功：若该任务使用 VBS 中转且文件存在，则同步清理
+    if defined CLEAN_VBS (
+      if exist "!CLEAN_VBS!" (
+        del /q "!CLEAN_VBS!"
+        echo 已同步删除 VBS 中转文件：!CLEAN_VBS!
+      ) else (
+        echo 未找到 VBS 中转文件（可能已删除）：!CLEAN_VBS!
+      )
+      echo.
+    )
     echo 2 秒后自动返回主菜单...
     timeout /t 2 /nobreak >nul
   )
