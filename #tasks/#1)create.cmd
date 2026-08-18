@@ -91,6 +91,28 @@ echo.
 @REM 计划类型
 @REM ------------------------------------------------------------
 :input_sc
+@REM 若配置了 TASK_SCHEDULE_TYPE，则直接使用并跳过交互
+if defined TASK_SCHEDULE_TYPE (
+  set "SC=!TASK_SCHEDULE_TYPE!"
+  set "SC_VALID=0"
+  for %%a in (ONLOGON ONSTART ONIDLE DAILY WEEKLY MONTHLY ONCE) do (
+    if /i "!SC!"=="%%a" (
+      set "SC=%%a"
+      set "SC_VALID=1"
+    )
+  )
+  if "!SC_VALID!"=="1" (
+    echo [自动] 计划类型：!SC!（来自配置 TASK_SCHEDULE_TYPE）
+    echo.
+    goto :sc_confirmed
+  )
+  echo 错误：config.cmd 中 TASK_SCHEDULE_TYPE 无效（!SC!）。
+  echo 支持的值：ONLOGON/ONSTART/ONIDLE/DAILY/WEEKLY/MONTHLY/ONCE
+  echo 将进入交互式选择。
+  echo.
+  set "TASK_SCHEDULE_TYPE="
+  set "SC="
+)
 echo 请选择计划类型（/sc）：
 echo  --------------------------------------
 echo  1. 用户登录时 (ONLOGON)  [默认]
@@ -119,6 +141,8 @@ if not defined SC (
   goto input_sc
 )
 
+:sc_confirmed
+
 @REM ------------------------------------------------------------
 @REM 判断需要时间还是延迟
 @REM ------------------------------------------------------------
@@ -132,14 +156,35 @@ if "!SC!"=="ONSTART" set "NEED_DELAY=1"
 if "!SC!"=="ONLOGON" set "NEED_DELAY=1"
 if "!SC!"=="ONIDLE" set "NEED_DELAY=1"
 
+@REM 若配置了不适用于当前计划类型的开始时间/延迟，给出提示并忽略
+if defined TASK_START_TIME (
+  if !NEED_TIME! EQU 0 (
+    echo [配置] TASK_START_TIME 不适用于计划类型 !SC!（不需要开始时间），已忽略。
+    set "TASK_START_TIME="
+  )
+)
+if defined TASK_DELAY_SECONDS (
+  if !NEED_DELAY! EQU 0 (
+    echo [配置] TASK_DELAY_SECONDS 不适用于计划类型 !SC!（不支持延迟），已忽略。
+    set "TASK_DELAY_SECONDS="
+  )
+)
+
 @REM ------------------------------------------------------------
 @REM 开始时间
 @REM ------------------------------------------------------------
 if !NEED_TIME! EQU 1 (
+  @REM 若配置了 TASK_START_TIME，则直接使用并跳过交互
+  if defined TASK_START_TIME (
+    set "ST=!TASK_START_TIME!"
+    set "TASK_START_TIME="
+    goto :st_check
+  )
   :input_st
   set "ST="
   set /p "ST=请输入开始时间（如 8:00 或 08:00，直接回车=06:00）："
   if "!ST!"=="" set "ST=06:00"
+  :st_check
   for /f "tokens=1,2 delims=:" %%a in ("!ST!") do (
     set "HOUR=%%a"
     set "MINUTE=%%b"
@@ -168,8 +213,10 @@ if !NEED_TIME! EQU 1 (
     echo 分钟不能大于59，请重新输入。
     goto input_st
   )
-  if !HOUR! LSS 10 set "HOUR=0!HOUR!"
-  if !MINUTE! LSS 10 set "MINUTE=0!MINUTE!"
+  set "HOURP=0!HOUR!"
+  set "HOUR=!HOURP:~-2!"
+  set "MINUTEP=0!MINUTE!"
+  set "MINUTE=!MINUTEP:~-2!"
   set "ST=!HOUR!:!MINUTE!"
   echo [自动] 标准化时间：!ST!
   set "DELAY="
@@ -183,10 +230,17 @@ if !NEED_DELAY! EQU 1 (
   echo.
   echo 计划类型为 !SC!，支持延迟执行。
   echo.
+  @REM 若配置了 TASK_DELAY_SECONDS，则直接使用并跳过交互
+  if defined TASK_DELAY_SECONDS (
+    set "DELAY_SEC=!TASK_DELAY_SECONDS!"
+    set "TASK_DELAY_SECONDS="
+    goto :delay_check
+  )
   set "DELAY_SEC="
   :input_delay
   set /p "DELAY_SEC=请输入延迟秒数（输入数字，如 30 表示 30 秒，直接回车=0）："
   if "!DELAY_SEC!"=="" set "DELAY_SEC=0"
+  :delay_check
   echo !DELAY_SEC!|findstr /r "^[0-9][0-9]*$" >nul
   if !errorlevel! neq 0 (
     echo 无效输入，请输入数字。
@@ -231,6 +285,26 @@ if !NEED_DELAY! EQU 1 (
 @REM ------------------------------------------------------------
 @REM 运行账户
 @REM ------------------------------------------------------------
+:input_ru
+@REM 若配置了 TASK_RUN_USER，则直接使用并跳过交互
+if defined TASK_RUN_USER (
+  if /i "!TASK_RUN_USER!"=="CURRENT" (
+    set "RU="
+    set "RP="
+    echo [自动] 运行账户：当前用户（来自配置 TASK_RUN_USER）
+  ) else if /i "!TASK_RUN_USER!"=="SYSTEM" (
+    set "RU=SYSTEM"
+    set "RP="
+    echo [自动] 运行账户：SYSTEM（来自配置 TASK_RUN_USER）
+  ) else (
+    set "RU=!TASK_RUN_USER!"
+    set "RP=!TASK_RUN_PASSWORD!"
+    echo [自动] 运行账户：!RU!（来自配置 TASK_RUN_USER）
+  )
+  set "TASK_RUN_USER="
+  echo.
+  goto :ru_confirmed
+)
 echo.
 echo 请选择运行任务的用户账户（/ru）：
 echo  --------------------------------------
@@ -239,7 +313,6 @@ echo  2. SYSTEM（系统账户，最高权限，无需密码）
 echo  3. 其他用户
 echo  --------------------------------------
 echo.
-:input_ru
 set "RU_CHOICE="
 set /p "RU_CHOICE=请输入选项编号 [1-3]（直接回车=1）："
 if "!RU_CHOICE!"=="" set "RU_CHOICE=1"
@@ -265,6 +338,8 @@ if "!RU_CHOICE!"=="1" (
   echo.
   goto input_ru
 )
+
+:ru_confirmed
 
 @REM ------------------------------------------------------------
 @REM 构建并执行
